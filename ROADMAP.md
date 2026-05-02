@@ -1,0 +1,209 @@
+# Judge Platform — Roadmap & Memory Map
+
+A LeetCode-style competitive programming backend, built in Go.
+This file is the source of truth for plan + progress. Update checkboxes as work completes. Other agents should read this first.
+
+---
+
+## Project goals
+
+- Backend in **Go**, hand-written for learning (no copy-paste of large blocks).
+- Production-shaped from day one (real patterns, not toy code).
+- Security-first for the code-execution path.
+- Small steps. Each step should be understandable before moving to the next.
+
+## Tech stack (locked in)
+
+- **Language:** Go
+- **DB:** Postgres
+- **Cache / queue:** Redis (Streams + consumer groups for the job queue)
+- **Sandbox:** Docker (Phase 7+); upgrade to nsjail/isolate later
+- **Object storage:** local disk first, MinIO/S3 later
+- **Auth:** JWT + argon2id password hashing
+- **Migrations:** `golang-migrate` (decision pending in Phase 2)
+
+## Target project layout (will grow into this)
+
+```
+cmd/
+  api/           # HTTP server binary
+  worker/        # judge worker binary
+internal/
+  auth/          # JWT, password hashing
+  problem/       # problem domain
+  submission/    # submission domain
+  judge/         # sandbox runner glue, verdict logic
+  queue/         # queue interface + Redis Streams impl
+  storage/       # Postgres + Redis clients
+  httpx/         # middleware (logging, recovery, request id)
+  config/        # env loading
+migrations/
+sandbox/
+  runner/        # tiny Go binary that runs INSIDE the sandbox container
+  Dockerfile.python
+  Dockerfile.go
+```
+
+---
+
+## Phases
+
+Legend: `[ ]` not started · `[~]` in progress · `[x]` done
+
+### Phase 0 — Foundations
+Goal: a working Go dev environment and an empty repo we can build on.
+
+- [x] Install Go (latest stable) and verify `go version`
+- [x] Install Docker Desktop and verify `docker run hello-world` 
+- [x] `git init` in this directory, add `.gitignore` for Go
+- [x] `go mod init github.com/harshit-mangtani/judge` (or chosen module path)
+- [x] Create empty `cmd/api/main.go` that prints "hello"
+- [x] `go run ./cmd/api` works
+
+### Phase 1 — HTTP API skeleton
+Goal: a real HTTP server with config, structured logging, and graceful shutdown.
+
+- [x] Add a `config` package that reads env vars (port, log level)
+- [x] Use `net/http` + `http.ServeMux` (standard library; no framework yet)
+- [x] Add `slog` structured logging (JSON in prod, text in dev)
+- [x] Add a `GET /healthz` endpoint that returns 200 OK
+- [x] Implement graceful shutdown on SIGINT/SIGTERM (with `context`)
+- [x] Add request-ID middleware (UUID per request, in logs + response header)
+- [ ] Add panic-recovery middleware
+
+### Phase 2 — Database & users
+Goal: Postgres connected, migrations running, users can sign up and log in.
+
+- [ ] Run Postgres locally via Docker Compose
+- [ ] Pick a migration tool (`golang-migrate`) and add `migrations/` dir
+- [ ] Migration 0001: `users` table (id, email, password_hash, created_at)
+- [ ] Add `pgx` driver and a `storage/postgres` package with a connection pool
+- [ ] `internal/auth`: argon2id hash + verify helpers
+- [ ] `POST /auth/signup` — validates input, creates user
+- [ ] `POST /auth/login` — verifies password, returns JWT
+- [ ] JWT auth middleware → puts `userID` in `context.Context`
+- [ ] `GET /me` (protected) returns the current user
+
+### Phase 3 — Problems
+Goal: problems can be stored and listed. No judging yet.
+
+- [ ] Migration 0002: `problems` table (id, slug, title, statement, time/memory limits)
+- [ ] Migration 0003: `test_cases` table (id, problem_id, idx, input, expected_output, is_sample)
+- [ ] `internal/problem` repo + service
+- [ ] `GET /problems` — list (paginated)
+- [ ] `GET /problems/{slug}` — detail (only sample test cases visible to user)
+- [ ] Admin-only `POST /problems` (gate by user role; add `role` column to users)
+- [ ] Seed script: insert one example problem ("two-sum") with a few test cases
+
+### Phase 4 — Submission intake
+Goal: user can submit code and get a `submission_id` back. No execution yet — verdict stays `queued`.
+
+- [ ] Migration 0004: `submissions` table (id, user_id, problem_id, language, source, status, verdict, runtime_ms, memory_kb, timestamps)
+- [ ] Migration 0005: `submission_test_results` table
+- [ ] `internal/submission` repo + service
+- [ ] `POST /submissions` (auth required) → writes row with `status=queued`, returns 202 + id
+- [ ] Input validation: language allow-list, source size cap (e.g. 64 KB)
+- [ ] `GET /submissions/{id}` — owner-only
+- [ ] `GET /submissions?problem_id=...` — own submissions, paginated
+
+### Phase 5 — Job queue (Redis Streams)
+Goal: submissions get pushed onto a durable queue.
+
+- [ ] Run Redis locally via Docker Compose
+- [ ] Add `redis/go-redis` client, `storage/redis` package
+- [ ] Define `queue.Queue` interface (`Enqueue`, `Consume`, `Ack`, `Nack`)
+- [ ] Implement `queue/redisstream` using Redis Streams + consumer groups
+- [ ] On `POST /submissions`, after DB insert, enqueue the job
+- [ ] Sweeper: periodic check for `queued` rows older than N seconds and re-enqueue
+
+### Phase 6 — Worker skeleton
+Goal: a separate binary that consumes jobs and updates submissions — but uses a **fake** verdict for now.
+
+- [ ] `cmd/worker/main.go` — same config + logging conventions as API
+- [ ] Connect to Postgres + Redis
+- [ ] Consumer-group loop: read job, mark submission `running`, sleep 1s, mark `done` with verdict `AC`
+- [ ] Status transitions guarded by `WHERE status = 'queued'` (idempotent)
+- [ ] Graceful shutdown: finish current job, then exit
+- [ ] Bounded concurrency (N goroutines, configurable)
+
+### Phase 7 — Sandbox: the runner contract
+Goal: the in-container runner exists and we trust its output. Still no real judging from the worker yet.
+
+- [ ] `sandbox/runner/main.go` — small Go binary that:
+  - reads stdin from a file
+  - runs the user program with wall-clock + memory + output-size limits
+  - writes a JSON result file: `{verdict, runtime_ms, memory_kb, exit_code, stderr_excerpt}`
+- [ ] `sandbox/Dockerfile.python` — base image with Python + the runner binary
+- [ ] Manual test: build image, `docker run` it with a known program, verify result JSON
+- [ ] Document the exact `docker run` flags we use (network none, read-only FS, mem/cpu/pids limits, cap-drop, no-new-privileges, non-root)
+
+### Phase 8 — Real judging (Python only)
+Goal: end-to-end. User submits Python → real verdict comes back.
+
+- [ ] `internal/judge` package: takes a submission, runs sandbox per test case
+- [ ] Worker swaps fake verdict for `judge.Run(submission)`
+- [ ] Per-test-case results written to `submission_test_results`
+- [ ] Verdict aggregation: stop on first non-AC, return that verdict
+- [ ] Map runner output → verdicts: AC, WA, TLE, MLE, RE
+- [ ] Manual test with our seeded "two-sum" problem
+
+### Phase 9 — Compiled languages (Go)
+Goal: support a language that needs a compile step.
+
+- [ ] `sandbox/Dockerfile.go`
+- [ ] Two-stage execution: compile (own time/mem limit) → run
+- [ ] Compile failure → `CE` verdict; compiler stderr stored (truncated)
+- [ ] Worker chooses language config based on `submission.language`
+
+### Phase 10 — Live updates
+Goal: the client doesn't have to poll.
+
+- [ ] `GET /submissions/{id}/events` — Server-Sent Events stream
+- [ ] Worker publishes status changes to a Redis pub/sub channel
+- [ ] API subscribes, fans out to connected SSE clients
+- [ ] Decision later: SSE vs WebSocket — SSE is simpler, do it first
+
+### Phase 11 — Hardening
+Goal: things you'd be embarrassed to ship without.
+
+- [ ] Rate limiting on `POST /submissions` (per-user, Redis-backed token bucket)
+- [ ] `Idempotency-Key` header support on `POST /submissions`
+- [ ] Output-size cap enforced inside the runner (not just outside)
+- [ ] Configurable per-language time/memory multipliers
+- [ ] Pre-pull sandbox images on worker startup
+
+### Phase 12 — Observability
+Goal: we can see what's happening in production.
+
+- [ ] Structured logs everywhere with request IDs / submission IDs as fields
+- [ ] Prometheus metrics: HTTP latency, queue depth, judge duration, verdict distribution
+- [ ] `/metrics` endpoint
+- [ ] Decision later: tracing (OpenTelemetry)
+
+### Phase 13 — Stretch (post-MVP)
+- [ ] Contests (start/end time, problem set, scoring)
+- [ ] Leaderboards (Redis sorted sets)
+- [ ] More languages (C++, Java, Rust)
+- [ ] Replace Docker with `nsjail` or `isolate` for faster sandbox startup
+- [ ] Frontend (separate project)
+
+---
+
+## Decisions log
+
+Record non-obvious choices here so future-us / agents understand the why.
+
+- **2026-05-01** — Project initialized. Chose Go + Postgres + Redis Streams + Docker sandbox as the v1 stack. Rationale in chat history; key driver: production-credible patterns with the smallest viable infra footprint.
+
+## Open questions
+
+- Module path for `go mod init`? Default proposal: `github.com/harshit-mangtani/judge`.
+- Project name — keeping `judge` as folder name; rename if a better one comes up.
+
+## How to use this file
+
+1. Read top-to-bottom to get oriented.
+2. Find the first phase with unchecked items — that's where work resumes.
+3. Tick a box only when the item is **actually working**, not just written.
+4. Add new items as we discover them; don't silently change scope.
+5. When in doubt, finish the current phase before starting the next.
