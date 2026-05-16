@@ -69,7 +69,7 @@ Goal: a real HTTP server with config, structured logging, and graceful shutdown.
 - [x] Add a `GET /healthz` endpoint that returns 200 OK
 - [x] Implement graceful shutdown on SIGINT/SIGTERM (with `context`)
 - [x] Add request-ID middleware (UUID per request, in logs + response header)
-- [ ] Add panic-recovery middleware
+- [x] Add panic-recovery middleware
 
 ### Phase 2 — Database & users
 Goal: Postgres connected, migrations running, users can sign up and log in.

@@ -31,9 +31,12 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "OK")
 	})
+	mux.HandleFunc("GET /panic", func(w http.ResponseWriter,r *http.Request){
+		panic("test-panic")
+	})
 	srv := &http.Server{
 		Addr:    ":" + strconv.Itoa(cfg.Port),
-		Handler: httpx.RequestID(logger)(mux),
+		Handler: httpx.RequestID(logger)(httpx.Recovery(logger)(mux)),
 	}
 	serverErr := make(chan error, 1)
 	go func() {
