@@ -74,7 +74,7 @@ Goal: a real HTTP server with config, structured logging, and graceful shutdown.
 ### Phase 2 — Database & users
 Goal: Postgres connected, migrations running, users can sign up and log in.
 
-- [ ] Run Postgres locally via Docker Compose
+- [x] Run Postgres locally via Docker Compose
 - [ ] Pick a migration tool (`golang-migrate`) and add `migrations/` dir
 - [ ] Migration 0001: `users` table (id, email, password_hash, created_at)
 - [ ] Add `pgx` driver and a `storage/postgres` package with a connection pool
