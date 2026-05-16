@@ -31,7 +31,7 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "OK")
 	})
-	mux.HandleFunc("GET /panic", func(w http.ResponseWriter,r *http.Request){
+	mux.HandleFunc("GET /panic", func(w http.ResponseWriter, r *http.Request) {
 		panic("test-panic")
 	})
 	srv := &http.Server{
