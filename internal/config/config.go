@@ -8,19 +8,19 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type config struct {
+type Config struct {
 	Port     int
 	LogLevel string // debug,info,warn,error
 	Env      string // dev,prod
 }
 
-func Load() config {
+func Load() Config {
 
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env found")
 	}
 
-	return config{
+	return Config{
 		Port:     getInt("PORT", 8080),
 		LogLevel: getStr("LOG_LEVEL", "info"),
 		Env:      getStr("ENV", "dev"),

@@ -36,7 +36,7 @@ func main() {
 	})
 	srv := &http.Server{
 		Addr:    ":" + strconv.Itoa(cfg.Port),
-		Handler: httpx.RequestID(logger)(httpx.Recovery(logger)(mux)),
+		Handler: httpx.Recovery(logger)(httpx.RequestID(logger)(mux)),
 	}
 	serverErr := make(chan error, 1)
 	go func() {
