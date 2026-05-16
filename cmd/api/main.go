@@ -10,9 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/harshit-mangtani/GoSpoc/internal/auth"
 	"github.com/harshit-mangtani/GoSpoc/internal/config"
 	"github.com/harshit-mangtani/GoSpoc/internal/httpx"
 	"github.com/harshit-mangtani/GoSpoc/internal/storage"
+	"github.com/harshit-mangtani/GoSpoc/internal/user"
 )
 
 func main() {
@@ -24,14 +26,23 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	pool,err:= storage.New(ctx,cfg)
+	pool, err := storage.New(ctx, cfg)
 
-	if err!=nil{
-		logger.Error("database conection failed","error",err)
+	if err != nil {
+		logger.Error("database conection failed", "error", err)
+		return
 	}
 	defer pool.Close()
 
 	logger.Info("database connected")
+
+	// application endpoints
+	userRepo := user.NewRepository(pool)
+	authHandler := auth.NewHandler(userRepo)
+
+	mux.HandleFunc("POST /auth/signup", authHandler.Signup)
+	
+	// testing endpoints
 	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "PONG")
 	})
@@ -40,6 +51,7 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "OK")
 	})
+
 	mux.HandleFunc("GET /panic", func(w http.ResponseWriter, r *http.Request) {
 		panic("test-panic")
 	})
