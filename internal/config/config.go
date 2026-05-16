@@ -9,9 +9,14 @@ import (
 )
 
 type Config struct {
-	Port     int
-	LogLevel string // debug,info,warn,error
-	Env      string // dev,prod
+	Port       int
+	LogLevel   string // debug,info,warn,error
+	Env        string // dev,prod
+	DBHost     string
+	DBPort     int
+	DBUser     string
+	DBPassword string
+	DBName     string
 }
 
 func Load() Config {
@@ -24,6 +29,11 @@ func Load() Config {
 		Port:     getInt("PORT", 8080),
 		LogLevel: getStr("LOG_LEVEL", "info"),
 		Env:      getStr("ENV", "dev"),
+		DBHost:   getStr("POSTGRES_DB_HOST", ""),  
+		DBPort:   getInt("POSTGRES_DB_PORT",5432), 
+		DBUser:   getStr("POSTGRES_DB_USER",""),  
+		DBPassword: getStr("POSTGRES_DB_PASSWORD",""),
+		DBName:     getStr("POSTGRES_DB_NAME",""),
 	}
 }
 

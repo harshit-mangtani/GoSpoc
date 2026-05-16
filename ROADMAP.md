@@ -75,9 +75,9 @@ Goal: a real HTTP server with config, structured logging, and graceful shutdown.
 Goal: Postgres connected, migrations running, users can sign up and log in.
 
 - [x] Run Postgres locally via Docker Compose
-- [ ] Pick a migration tool (`golang-migrate`) and add `migrations/` dir
-- [ ] Migration 0001: `users` table (id, email, password_hash, created_at)
-- [ ] Add `pgx` driver and a `storage/postgres` package with a connection pool
+- [x] Pick a migration tool (`golang-migrate`) and add `migrations/` dir
+- [x] Migration 0001: `users` table (id, email, password_hash, created_at)
+- [x] Add `pgx` driver and a `storage/postgres` package with a connection pool
 - [ ] `internal/auth`: argon2id hash + verify helpers
 - [ ] `POST /auth/signup` — validates input, creates user
 - [ ] `POST /auth/login` — verifies password, returns JWT

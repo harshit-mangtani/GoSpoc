@@ -12,6 +12,7 @@ import (
 
 	"github.com/harshit-mangtani/GoSpoc/internal/config"
 	"github.com/harshit-mangtani/GoSpoc/internal/httpx"
+	"github.com/harshit-mangtani/GoSpoc/internal/storage"
 )
 
 func main() {
@@ -23,6 +24,14 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	pool,err:= storage.New(ctx,cfg)
+
+	if err!=nil{
+		logger.Error("database conection failed","error",err)
+	}
+	defer pool.Close()
+
+	logger.Info("database connected")
 	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "PONG")
 	})
@@ -40,7 +49,7 @@ func main() {
 	}
 	serverErr := make(chan error, 1)
 	go func() {
-		logger.Info("server starting", "addr", srv.Addr)
+		logger.Info("server started", "addr", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
 		}
