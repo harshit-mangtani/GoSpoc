@@ -17,6 +17,7 @@ type Config struct {
 	DBUser     string
 	DBPassword string
 	DBName     string
+	JWTSecret  string
 }
 
 func Load() Config {
@@ -26,14 +27,15 @@ func Load() Config {
 	}
 
 	return Config{
-		Port:     getInt("PORT", 8080),
-		LogLevel: getStr("LOG_LEVEL", "info"),
-		Env:      getStr("ENV", "dev"),
-		DBHost:   getStr("POSTGRES_DB_HOST", ""),  
-		DBPort:   getInt("POSTGRES_DB_PORT",5432), 
-		DBUser:   getStr("POSTGRES_DB_USER",""),  
-		DBPassword: getStr("POSTGRES_DB_PASSWORD",""),
-		DBName:     getStr("POSTGRES_DB_NAME",""),
+		Port:       getInt("PORT", 8080),
+		LogLevel:   getStr("LOG_LEVEL", "info"),
+		Env:        getStr("ENV", "dev"),
+		DBHost:     getStr("POSTGRES_DB_HOST", ""),
+		DBPort:     getInt("POSTGRES_DB_PORT", 5432),
+		DBUser:     getStr("POSTGRES_DB_USER", ""),
+		DBPassword: getStr("POSTGRES_DB_PASSWORD", ""),
+		DBName:     getStr("POSTGRES_DB_NAME", ""),
+		JWTSecret:  getStr("JWT_SECRET", ""),
 	}
 }
 

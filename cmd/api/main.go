@@ -36,16 +36,28 @@ func main() {
 
 	logger.Info("database connected")
 
+	requireAuth := auth.AuthMiddleware(cfg.JWTSecret)
+
 	// application endpoints
 	userRepo := user.NewRepository(pool)
-	authHandler := auth.NewHandler(userRepo)
+	authHandler := auth.NewHandler(userRepo, cfg.JWTSecret)
 
 	mux.HandleFunc("POST /auth/signup", authHandler.Signup)
-	
+	mux.HandleFunc("POST /auth/login", authHandler.Login)
+
 	// testing endpoints
 	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "PONG")
 	})
+
+	mux.Handle("GET /me", requireAuth(http.HandlerFunc((func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := auth.UserIDFromContext(r.Context())
+		if !ok {
+			http.Error(w, "user not found", http.StatusUnauthorized)
+			return
+		}
+		fmt.Fprintf(w, "User verified: %d \n", userID)
+	}))))
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

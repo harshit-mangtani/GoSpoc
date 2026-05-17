@@ -79,10 +79,10 @@ Goal: Postgres connected, migrations running, users can sign up and log in.
 - [x] Migration 0001: `users` table (id, email, password_hash, created_at)
 - [x] Add `pgx` driver and a `storage/postgres` package with a connection pool
 - [x] `internal/auth`: argon2id hash + verify helpers
-- [ ] `POST /auth/signup` — validates input, creates user
-- [ ] `POST /auth/login` — verifies password, returns JWT
-- [ ] JWT auth middleware → puts `userID` in `context.Context`
-- [ ] `GET /me` (protected) returns the current user
+- [x] `POST /auth/signup` — validates input, creates user
+- [x] `POST /auth/login` — verifies password, returns JWT
+- [x] JWT auth middleware → puts `userID` in `context.Context`
+- [x] `GET /me` (protected) returns the current user
 
 ### Phase 3 — Problems
 Goal: problems can be stored and listed. No judging yet.
