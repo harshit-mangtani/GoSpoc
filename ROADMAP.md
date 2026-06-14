@@ -87,8 +87,8 @@ Goal: Postgres connected, migrations running, users can sign up and log in.
 ### Phase 3 — Problems
 Goal: problems can be stored and listed. No judging yet.
 
-- [ ] Migration 0002: `problems` table (id, slug, title, statement, time/memory limits)
-- [ ] Migration 0003: `test_cases` table (id, problem_id, idx, input, expected_output, is_sample)
+- [x] Migration 0002: `problems` table (id, slug, title, statement, time/memory limits)
+- [x] Migration 0003: `test_cases` table (id, problem_id, idx, input, expected_output, is_sample)
 - [ ] `internal/problem` repo + service
 - [ ] `GET /problems` — list (paginated)
 - [ ] `GET /problems/{slug}` — detail (only sample test cases visible to user)

@@ -13,6 +13,7 @@ import (
 	"github.com/harshit-mangtani/GoSpoc/internal/auth"
 	"github.com/harshit-mangtani/GoSpoc/internal/config"
 	"github.com/harshit-mangtani/GoSpoc/internal/httpx"
+	"github.com/harshit-mangtani/GoSpoc/internal/problem"
 	"github.com/harshit-mangtani/GoSpoc/internal/storage"
 	"github.com/harshit-mangtani/GoSpoc/internal/user"
 )
@@ -41,10 +42,12 @@ func main() {
 	// application endpoints
 	userRepo := user.NewRepository(pool)
 	authHandler := auth.NewHandler(userRepo, cfg.JWTSecret)
+	problemRepo := problem.NewRepository(pool)
+	problemHandler := problem.NewHandler(problemRepo)
+	mux.Handle("POST /problems", requireAuth(http.HandlerFunc(problemHandler.Create)))
 
 	mux.HandleFunc("POST /auth/signup", authHandler.Signup)
 	mux.HandleFunc("POST /auth/login", authHandler.Login)
-
 	// testing endpoints
 	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "PONG")
