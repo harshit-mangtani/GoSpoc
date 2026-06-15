@@ -45,6 +45,8 @@ func main() {
 	problemRepo := problem.NewRepository(pool)
 	problemHandler := problem.NewHandler(problemRepo)
 	mux.Handle("POST /problems", requireAuth(http.HandlerFunc(problemHandler.Create)))
+	mux.Handle("GET /problems", requireAuth(http.HandlerFunc(problemHandler.List)))
+	mux.Handle("GET /problems/{slug}", requireAuth(http.HandlerFunc(problemHandler.GetProblem)))
 
 	mux.HandleFunc("POST /auth/signup", authHandler.Signup)
 	mux.HandleFunc("POST /auth/login", authHandler.Login)
