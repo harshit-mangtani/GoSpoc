@@ -90,8 +90,8 @@ Goal: problems can be stored and listed. No judging yet.
 - [x] Migration 0002: `problems` table (id, slug, title, statement, time/memory limits)
 - [x] Migration 0003: `test_cases` table (id, problem_id, idx, input, expected_output, is_sample)
 - [x] `internal/problem` repo + service
-- [ ] `GET /problems` — list (paginated)
-- [ ] `GET /problems/{slug}` — detail (only sample test cases visible to user)
+- [x] `GET /problems` — list (paginated remain)
+- [x] `GET /problems/{slug}` — detail (only sample test cases visible to user)
 - [ ] Admin-only `POST /problems` (gate by user role; add `role` column to users)
 - [ ] Seed script: insert one example problem ("two-sum") with a few test cases
 
