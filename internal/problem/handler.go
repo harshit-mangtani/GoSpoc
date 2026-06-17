@@ -57,7 +57,7 @@ type GetProblemResponse struct {
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createRequest
-
+	
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json body", http.StatusBadRequest)
 		return

@@ -27,11 +27,13 @@ func NewHandler(users *user.Repository, jwtSecret string) *Handler {
 type signupRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Role     string `json:"role"`
 }
 
 type signupResponse struct {
 	ID    int64  `json:"id"`
 	Email string `json:"email"`
+	Role  string `json:"role"`
 }
 
 type loginRequest struct {
@@ -42,6 +44,7 @@ type loginRequest struct {
 type loginResponse struct {
 	ID    int64  `json:"id"`
 	Email string `json:"email"`
+	Role  string `json:"role"`
 	Token string `json:"token"`
 }
 
@@ -52,15 +55,19 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid json body", http.StatusBadRequest)
 		return
 	}
-
+    
 	email := strings.TrimSpace(strings.ToLower(req.Email))
 	password := req.Password
+	role := strings.ToLower(req.Role)
 
 	if email == "" || password == "" {
 		http.Error(w, "email and password cant be empty", http.StatusBadRequest)
 		return
 	}
 
+	if role == "" {
+		role = "user"
+	}
 	if len(password) < 8 {
 		http.Error(w, "password must be at least 8 characters", http.StatusBadRequest)
 		return
@@ -73,7 +80,7 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := h.users.Create(r.Context(), email, passwordHash)
+	u, err := h.users.Create(r.Context(), email, passwordHash,role)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -90,6 +97,7 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(signupResponse{
 		ID:    u.ID,
 		Email: u.Email,
+		Role: u.Role,
 	})
 }
 
@@ -149,5 +157,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		ID:    u.ID,
 		Email: u.Email,
 		Token: token,
+		Role: u.Role,
 	})
 }

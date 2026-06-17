@@ -92,8 +92,8 @@ Goal: problems can be stored and listed. No judging yet.
 - [x] `internal/problem` repo + service
 - [x] `GET /problems` — list (paginated remain)
 - [x] `GET /problems/{slug}` — detail (only sample test cases visible to user)
-- [ ] Admin-only `POST /problems` (gate by user role; add `role` column to users)
-- [ ] Seed script: insert one example problem ("two-sum") with a few test cases
+- [x] Admin-only `POST /problems` (gate by user role; add `role` column to users)
+- [x] Seed script: insert one example problem ("two-sum") with a few test cases
 
 ### Phase 4 — Submission intake
 Goal: user can submit code and get a `submission_id` back. No execution yet — verdict stays `queued`.
