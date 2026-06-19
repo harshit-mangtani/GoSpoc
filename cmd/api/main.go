@@ -15,6 +15,7 @@ import (
 	"github.com/harshit-mangtani/GoSpoc/internal/httpx"
 	"github.com/harshit-mangtani/GoSpoc/internal/problem"
 	"github.com/harshit-mangtani/GoSpoc/internal/storage"
+	"github.com/harshit-mangtani/GoSpoc/internal/submission"
 	"github.com/harshit-mangtani/GoSpoc/internal/user"
 )
 
@@ -37,6 +38,16 @@ func main() {
 
 	logger.Info("database connected")
 
+	redisPool,err:= storage.NewRedis(ctx,cfg)
+
+	if err != nil {
+		logger.Error("database conection failed", "error", err)
+		return
+	}
+	defer redisPool.Close()
+
+    logger.Info("redis connected")
+	
 	requireAuth := auth.AuthMiddleware(cfg.JWTSecret)
 
 	// application endpoints
@@ -45,9 +56,14 @@ func main() {
 	authHandler := auth.NewHandler(userRepo, cfg.JWTSecret)
 	problemRepo := problem.NewRepository(pool)
 	problemHandler := problem.NewHandler(problemRepo)
+	submissionRepo := submission.NewRepository(pool)
+	submissionHandler := submission.NewHandler(submissionRepo)
 	mux.Handle("POST /problems", requireAuth(requireAdmin(http.HandlerFunc(problemHandler.Create))))
 	mux.Handle("GET /problems", requireAuth(http.HandlerFunc(problemHandler.List)))
 	mux.Handle("GET /problems/{slug}", requireAuth(http.HandlerFunc(problemHandler.GetProblem)))
+	mux.Handle("POST /submissions", requireAuth(http.HandlerFunc(submissionHandler.Create)))
+	mux.Handle("GET /submissions", requireAuth(http.HandlerFunc(submissionHandler.List)))
+	mux.Handle("GET /submissions/{id}", requireAuth(http.HandlerFunc(submissionHandler.GetByID)))
 
 	mux.HandleFunc("POST /auth/signup", authHandler.Signup)
 	mux.HandleFunc("POST /auth/login", authHandler.Login)

@@ -98,20 +98,20 @@ Goal: problems can be stored and listed. No judging yet.
 ### Phase 4 — Submission intake
 Goal: user can submit code and get a `submission_id` back. No execution yet — verdict stays `queued`.
 
-- [ ] Migration 0004: `submissions` table (id, user_id, problem_id, language, source, status, verdict, runtime_ms, memory_kb, timestamps)
-- [ ] Migration 0005: `submission_test_results` table
-- [ ] `internal/submission` repo + service
-- [ ] `POST /submissions` (auth required) → writes row with `status=queued`, returns 202 + id
-- [ ] Input validation: language allow-list, source size cap (e.g. 64 KB)
-- [ ] `GET /submissions/{id}` — owner-only
-- [ ] `GET /submissions?problem_id=...` — own submissions, paginated
+- [x] Migration 0004: `submissions` table (id, user_id, problem_id, language, source, status, verdict, runtime_ms, memory_kb, timestamps)
+- [x] Migration 0005: `submission_test_results` table
+- [x] `internal/submission` repo + service
+- [x] `POST /submissions` (auth required) → writes row with `status=queued`, returns 202 + id
+- [x] Input validation: language allow-list, source size cap (e.g. 64 KB)
+- [x] `GET /submissions/{id}` — owner-only
+- [ ] `GET /submissions?problem_id=...` — own submissions, paginated (TODO)
 
 ### Phase 5 — Job queue (Redis Streams)
 Goal: submissions get pushed onto a durable queue.
 
-- [ ] Run Redis locally via Docker Compose
-- [ ] Add `redis/go-redis` client, `storage/redis` package
-- [ ] Define `queue.Queue` interface (`Enqueue`, `Consume`, `Ack`, `Nack`)
+- [x] Run Redis locally via Docker Compose
+- [x] Add `redis/go-redis` client, `storage/redis` package
+- [x] Define `queue.Queue` interface (`Enqueue`, `Consume`, `Ack`, `Nack`)
 - [ ] Implement `queue/redisstream` using Redis Streams + consumer groups
 - [ ] On `POST /submissions`, after DB insert, enqueue the job
 - [ ] Sweeper: periodic check for `queued` rows older than N seconds and re-enqueue
