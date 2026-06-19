@@ -34,4 +34,3 @@ func New(ctx context.Context, client *redis.Client, stream, group string) (*Queu
     return q,nil
 }
 
-func Enqueue(ctx context.Context, client )
