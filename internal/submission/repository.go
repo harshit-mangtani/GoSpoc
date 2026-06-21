@@ -2,6 +2,7 @@ package submission
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -112,6 +113,40 @@ func (r *Repository) ListByUser(ctx context.Context, userID int64) ([]Submission
 	}
 
 	return submissions, nil
+}
+
+// ListStaleQueued returns the ids of submissions still in "queued" status
+// whose last update is older than the given cutoff. These are candidates for
+// re-enqueue: either their enqueue failed, or the message was lost before a
+// worker picked it up.
+func (r *Repository) ListStaleQueued(ctx context.Context, olderThan time.Duration) ([]int64, error) {
+	cutoff := time.Now().Add(-olderThan)
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT id
+		FROM submissions
+		WHERE status = 'queued' AND updated_at < $1
+		ORDER BY id
+	`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	ids := make([]int64, 0)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return ids, nil
 }
 
 func (r *Repository) ListByUserAndProblem(ctx context.Context, userID, problemID int64) ([]Submission, error) {

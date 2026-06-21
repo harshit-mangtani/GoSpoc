@@ -21,6 +21,10 @@ type Config struct {
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
+	RedisStream   string
+	RedisGroup    string
+	SweepInterval int // seconds between sweeps for stale queued submissions
+	SweepStale    int // seconds a submission may sit as "queued" before re-enqueue
 }
 
 func Load() Config {
@@ -42,6 +46,10 @@ func Load() Config {
 		RedisAddr:     getStr("REDIS_ADDR", ""),
 		RedisPassword: getStr("REDIS_PASSWORD", ""),
 		RedisDB:       getInt("REDIS_DB", 0),
+		RedisStream:   getStr("REDIS_STREAM", "submissions"),
+		RedisGroup:    getStr("REDIS_GROUP", "judges"),
+		SweepInterval: getInt("SWEEP_INTERVAL_SEC", 30),
+		SweepStale:    getInt("SWEEP_STALE_SEC", 60),
 	}
 }
 

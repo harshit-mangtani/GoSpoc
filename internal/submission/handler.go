@@ -3,12 +3,14 @@ package submission
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/harshit-mangtani/GoSpoc/internal/auth"
+	"github.com/harshit-mangtani/GoSpoc/internal/queue"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -16,11 +18,15 @@ const maxSourceBytes = 64 * 1024
 
 type Handler struct {
 	submissions *Repository
+	queue       queue.Queue
+	logger      *slog.Logger
 }
 
-func NewHandler(submissions *Repository) *Handler {
+func NewHandler(submissions *Repository, q queue.Queue, logger *slog.Logger) *Handler {
 	return &Handler{
 		submissions: submissions,
+		queue:       q,
+		logger:      logger,
 	}
 }
 
@@ -86,6 +92,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "failed to create submission", http.StatusInternalServerError)
 		return
+	}
+
+	// Enqueue is best-effort: the row is already persisted as "queued", so if
+	// this fails the sweeper will re-enqueue it. Don't fail the request.
+	if err := h.queue.Enqueue(r.Context(), queue.Job{SubmissionID: s.ID}); err != nil {
+		h.logger.Error("failed to enqueue submission", "submission_id", s.ID, "error", err)
 	}
 
 	writeJSON(w, http.StatusAccepted, toResponse(s))

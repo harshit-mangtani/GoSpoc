@@ -14,6 +14,7 @@ import (
 	"github.com/harshit-mangtani/GoSpoc/internal/config"
 	"github.com/harshit-mangtani/GoSpoc/internal/httpx"
 	"github.com/harshit-mangtani/GoSpoc/internal/problem"
+	"github.com/harshit-mangtani/GoSpoc/internal/queue/redisstream"
 	"github.com/harshit-mangtani/GoSpoc/internal/storage"
 	"github.com/harshit-mangtani/GoSpoc/internal/submission"
 	"github.com/harshit-mangtani/GoSpoc/internal/user"
@@ -47,7 +48,15 @@ func main() {
 	defer redisPool.Close()
 
     logger.Info("redis connected")
-	
+
+	jobQueue, err := redisstream.New(ctx, redisPool, cfg.RedisStream, cfg.RedisGroup)
+	if err != nil {
+		logger.Error("queue init failed", "error", err)
+		return
+	}
+
+	logger.Info("job queue ready", "stream", cfg.RedisStream, "group", cfg.RedisGroup)
+
 	requireAuth := auth.AuthMiddleware(cfg.JWTSecret)
 
 	// application endpoints
@@ -57,7 +66,16 @@ func main() {
 	problemRepo := problem.NewRepository(pool)
 	problemHandler := problem.NewHandler(problemRepo)
 	submissionRepo := submission.NewRepository(pool)
-	submissionHandler := submission.NewHandler(submissionRepo)
+	submissionHandler := submission.NewHandler(submissionRepo, jobQueue, logger)
+
+	sweeper := submission.NewSweeper(
+		submissionRepo,
+		jobQueue,
+		logger,
+		time.Duration(cfg.SweepInterval)*time.Second,
+		time.Duration(cfg.SweepStale)*time.Second,
+	)
+	go sweeper.Run(ctx)
 	mux.Handle("POST /problems", requireAuth(requireAdmin(http.HandlerFunc(problemHandler.Create))))
 	mux.Handle("GET /problems", requireAuth(http.HandlerFunc(problemHandler.List)))
 	mux.Handle("GET /problems/{slug}", requireAuth(http.HandlerFunc(problemHandler.GetProblem)))

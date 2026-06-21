@@ -104,17 +104,17 @@ Goal: user can submit code and get a `submission_id` back. No execution yet — 
 - [x] `POST /submissions` (auth required) → writes row with `status=queued`, returns 202 + id
 - [x] Input validation: language allow-list, source size cap (e.g. 64 KB)
 - [x] `GET /submissions/{id}` — owner-only
-- [ ] `GET /submissions?problem_id=...` — own submissions, paginated (TODO)
+- [x] `GET /submissions?problem_id=...` — own submissions (via `ListByUserAndProblem`)
 
 ### Phase 5 — Job queue (Redis Streams)
 Goal: submissions get pushed onto a durable queue.
 
 - [x] Run Redis locally via Docker Compose
 - [x] Add `redis/go-redis` client, `storage/redis` package
-- [x] Define `queue.Queue` interface (`Enqueue`, `Consume`, `Ack`, `Nack`)
-- [ ] Implement `queue/redisstream` using Redis Streams + consumer groups
-- [ ] On `POST /submissions`, after DB insert, enqueue the job
-- [ ] Sweeper: periodic check for `queued` rows older than N seconds and re-enqueue
+- [x] Define `queue.Queue` interface (`Enqueue`, `Consume`, `Ack`, `Nack`) — fallible ops now return `error`; added `ErrNoMessage` sentinel
+- [x] Implement `queue/redisstream` using Redis Streams + consumer groups (XADD / XREADGROUP / XACK)
+- [x] On `POST /submissions`, after DB insert, enqueue the job (best-effort; sweeper is the backstop)
+- [x] Sweeper: periodic check for `queued` rows older than N seconds and re-enqueue
 
 ### Phase 6 — Worker skeleton
 Goal: a separate binary that consumes jobs and updates submissions — but uses a **fake** verdict for now.
@@ -194,6 +194,7 @@ Goal: we can see what's happening in production.
 Record non-obvious choices here so future-us / agents understand the why.
 
 - **2026-05-01** — Project initialized. Chose Go + Postgres + Redis Streams + Docker sandbox as the v1 stack. Rationale in chat history; key driver: production-credible patterns with the smallest viable infra footprint.
+- **2026-07-06** — Phase 5 done. DB row is the source of truth for a submission; the queue is best-effort. `POST /submissions` persists `status=queued` then enqueues, but never fails the request on an enqueue error — a DB-backed sweeper re-enqueues any `queued` row older than `SWEEP_STALE_SEC`. `queue.Queue.Nack` is a no-op for now (message stays in the consumer-group PEL for later XAUTOCLAIM, added with the worker in Phase 6). Also fixed a bug in `storage/redis` that closed the client immediately after creating it.
 
 ## Open questions
 
