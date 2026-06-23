@@ -45,6 +45,34 @@ func (r *Repository) Create(ctx context.Context, userID, problemID int64, langua
 	return s, nil
 }
 
+// MarkRunning claims a queued submission. The status guard makes it idempotent:
+// ok is false if it was already claimed or isn't queued.
+func (r *Repository) MarkRunning(ctx context.Context, id int64) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE submissions
+		SET status = 'running', updated_at = NOW()
+		WHERE id = $1 AND status = 'queued'
+	`, id)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// MarkDone records the verdict/runtime, guarded so it only lands on a claimed
+// (running) submission.
+func (r *Repository) MarkDone(ctx context.Context, id int64, verdict string, runtimeMS int) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE submissions
+		SET status = 'done', verdict = $2, runtime_ms = $3, updated_at = NOW()
+		WHERE id = $1 AND status = 'running'
+	`, id, verdict, runtimeMS)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 func (r *Repository) FindByID(ctx context.Context, id int64) (Submission, error) {
 	var s Submission
 

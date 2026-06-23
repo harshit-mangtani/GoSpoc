@@ -25,6 +25,9 @@ type Config struct {
 	RedisGroup    string
 	SweepInterval int // seconds between sweeps for stale queued submissions
 	SweepStale    int // seconds a submission may sit as "queued" before re-enqueue
+
+	WorkerConcurrency int // concurrent judge goroutines
+	WorkerFakeDelayMS int // fake judging delay (Phase 6)
 }
 
 func Load() Config {
@@ -50,6 +53,9 @@ func Load() Config {
 		RedisGroup:    getStr("REDIS_GROUP", "judges"),
 		SweepInterval: getInt("SWEEP_INTERVAL_SEC", 30),
 		SweepStale:    getInt("SWEEP_STALE_SEC", 60),
+
+		WorkerConcurrency: getInt("WORKER_CONCURRENCY", 4),
+		WorkerFakeDelayMS: getInt("WORKER_FAKE_DELAY_MS", 1000),
 	}
 }
 
