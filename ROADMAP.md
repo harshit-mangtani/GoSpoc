@@ -119,12 +119,12 @@ Goal: submissions get pushed onto a durable queue.
 ### Phase 6 — Worker skeleton
 Goal: a separate binary that consumes jobs and updates submissions — but uses a **fake** verdict for now.
 
-- [ ] `cmd/worker/main.go` — same config + logging conventions as API
-- [ ] Connect to Postgres + Redis
-- [ ] Consumer-group loop: read job, mark submission `running`, sleep 1s, mark `done` with verdict `AC`
-- [ ] Status transitions guarded by `WHERE status = 'queued'` (idempotent)
-- [ ] Graceful shutdown: finish current job, then exit
-- [ ] Bounded concurrency (N goroutines, configurable)
+- [x] `cmd/worker/main.go` — same config + logging conventions as API
+- [x] Connect to Postgres + Redis
+- [x] Consumer-group loop: read job, mark submission `running`, sleep 1s, mark `done` with verdict `AC`
+- [x] Status transitions guarded by `WHERE status = 'queued'` (idempotent)
+- [x] Graceful shutdown: finish current job, then exit
+- [x] Bounded concurrency (N goroutines, configurable)
 
 ### Phase 7 — Sandbox: the runner contract
 Goal: the in-container runner exists and we trust its output. Still no real judging from the worker yet.
