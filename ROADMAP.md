@@ -129,13 +129,13 @@ Goal: a separate binary that consumes jobs and updates submissions — but uses 
 ### Phase 7 — Sandbox: the runner contract
 Goal: the in-container runner exists and we trust its output. Still no real judging from the worker yet.
 
-- [ ] `sandbox/runner/main.go` — small Go binary that:
+- [x] `sandbox/runner/main.go` — small Go binary that:
   - reads stdin from a file
   - runs the user program with wall-clock + memory + output-size limits
   - writes a JSON result file: `{verdict, runtime_ms, memory_kb, exit_code, stderr_excerpt}`
-- [ ] `sandbox/Dockerfile.python` — base image with Python + the runner binary
-- [ ] Manual test: build image, `docker run` it with a known program, verify result JSON
-- [ ] Document the exact `docker run` flags we use (network none, read-only FS, mem/cpu/pids limits, cap-drop, no-new-privileges, non-root)
+- [x] `sandbox/Dockerfile.python` — base image with Python + the runner binary
+- [x] Manual test: build image, `docker run` it with a known program, verify result JSON
+- [x] Document the exact `docker run` flags we use (network none, read-only FS, mem/cpu/pids limits, cap-drop, no-new-privileges, non-root)
 
 ### Phase 8 — Real judging (Python only)
 Goal: end-to-end. User submits Python → real verdict comes back.
