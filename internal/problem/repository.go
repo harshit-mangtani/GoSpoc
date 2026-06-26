@@ -37,6 +37,26 @@ func (r *Repository) Create(ctx context.Context, slug, title, statement string, 
 	return p, nil
 }
 
+func (r *Repository) GetByID(ctx context.Context, id int64) (Problem, error) {
+	var p Problem
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, slug, title, statement, time_limit_ms, memory_limit_kb
+		FROM problems
+		WHERE id = $1
+	`, id).Scan(
+		&p.ID,
+		&p.Slug,
+		&p.Title,
+		&p.Statement,
+		&p.TimeLimitMS,
+		&p.MemoryLimitKB,
+	)
+	if err != nil {
+		return Problem{}, err
+	}
+	return p, nil
+}
+
 func (r *Repository) List(ctx context.Context) ([]Problem, error) {
 
 	var problems []Problem

@@ -27,7 +27,10 @@ type Config struct {
 	SweepStale    int // seconds a submission may sit as "queued" before re-enqueue
 
 	WorkerConcurrency int // concurrent judge goroutines
-	WorkerFakeDelayMS int // fake judging delay (Phase 6)
+
+	SandboxImage    string // docker image used to judge python submissions
+	SandboxWorkDir  string // host dir for per-run mounts ("" = os.TempDir)
+	SandboxOutputKB int    // max captured stdout per run, in KB
 }
 
 func Load() Config {
@@ -55,7 +58,10 @@ func Load() Config {
 		SweepStale:    getInt("SWEEP_STALE_SEC", 60),
 
 		WorkerConcurrency: getInt("WORKER_CONCURRENCY", 4),
-		WorkerFakeDelayMS: getInt("WORKER_FAKE_DELAY_MS", 1000),
+
+		SandboxImage:    getStr("SANDBOX_IMAGE", "gospoc-sandbox-python"),
+		SandboxWorkDir:  getStr("SANDBOX_WORK_DIR", ""),
+		SandboxOutputKB: getInt("SANDBOX_OUTPUT_KB", 1024),
 	}
 }
 

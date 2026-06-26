@@ -140,12 +140,12 @@ Goal: the in-container runner exists and we trust its output. Still no real judg
 ### Phase 8 — Real judging (Python only)
 Goal: end-to-end. User submits Python → real verdict comes back.
 
-- [ ] `internal/judge` package: takes a submission, runs sandbox per test case
-- [ ] Worker swaps fake verdict for `judge.Run(submission)`
-- [ ] Per-test-case results written to `submission_test_results`
-- [ ] Verdict aggregation: stop on first non-AC, return that verdict
-- [ ] Map runner output → verdicts: AC, WA, TLE, MLE, RE
-- [ ] Manual test with our seeded "two-sum" problem
+- [x] `internal/judge` package: takes a submission, runs sandbox per test case
+- [x] Worker swaps fake verdict for `judge.Run(submission)`
+- [x] Per-test-case results written to `submission_test_results`
+- [x] Verdict aggregation: stop on first non-AC, return that verdict
+- [x] Map runner output → verdicts: AC, WA, TLE, MLE, RE
+- [x] Manual test with our seeded "two-sum" problem
 
 ### Phase 9 — Compiled languages (Go)
 Goal: support a language that needs a compile step.

@@ -59,18 +59,52 @@ func (r *Repository) MarkRunning(ctx context.Context, id int64) (bool, error) {
 	return tag.RowsAffected() == 1, nil
 }
 
-// MarkDone records the verdict/runtime, guarded so it only lands on a claimed
-// (running) submission.
-func (r *Repository) MarkDone(ctx context.Context, id int64, verdict string, runtimeMS int) (bool, error) {
+// MarkDone records the verdict/runtime/memory, guarded so it only lands on a
+// claimed (running) submission.
+func (r *Repository) MarkDone(ctx context.Context, id int64, verdict string, runtimeMS, memoryKB int) (bool, error) {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE submissions
-		SET status = 'done', verdict = $2, runtime_ms = $3, updated_at = NOW()
+		SET status = 'done', verdict = $2, runtime_ms = $3, memory_kb = $4, updated_at = NOW()
 		WHERE id = $1 AND status = 'running'
-	`, id, verdict, runtimeMS)
+	`, id, verdict, runtimeMS, memoryKB)
 	if err != nil {
 		return false, err
 	}
 	return tag.RowsAffected() == 1, nil
+}
+
+// MarkFailed marks a running submission as failed (judging infrastructure error,
+// not a code verdict).
+func (r *Repository) MarkFailed(ctx context.Context, id int64) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE submissions
+		SET status = 'failed', updated_at = NOW()
+		WHERE id = $1 AND status = 'running'
+	`, id)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+type TestResult struct {
+	SubmissionID  int64
+	TestCaseID    int64
+	Idx           int
+	Verdict       string
+	RuntimeMS     int
+	MemoryKB      int
+	StderrExcerpt string
+}
+
+func (r *Repository) SaveTestResult(ctx context.Context, tr TestResult) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO submission_test_results
+			(submission_id, test_case_id, idx, verdict, runtime_ms, memory_kb, stderr_excerpt)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT (submission_id, test_case_id) DO NOTHING
+	`, tr.SubmissionID, tr.TestCaseID, tr.Idx, tr.Verdict, tr.RuntimeMS, tr.MemoryKB, tr.StderrExcerpt)
+	return err
 }
 
 func (r *Repository) FindByID(ctx context.Context, id int64) (Submission, error) {

@@ -11,26 +11,37 @@ import (
 	"github.com/harshit-mangtani/GoSpoc/internal/queue"
 )
 
-// Store is the persistence the worker needs. *submission.Repository satisfies it.
 type Store interface {
 	MarkRunning(ctx context.Context, id int64) (bool, error)
-	MarkDone(ctx context.Context, id int64, verdict string, runtimeMS int) (bool, error)
+	MarkDone(ctx context.Context, id int64, verdict string, runtimeMS, memoryKB int) (bool, error)
+	MarkFailed(ctx context.Context, id int64) (bool, error)
 }
 
-const opTimeout = 30 * time.Second
+// Report is the outcome of judging one submission.
+type Report struct {
+	Verdict   string
+	RuntimeMS int
+	MemoryKB  int
+}
+
+type Judger interface {
+	Run(ctx context.Context, submissionID int64) (Report, error)
+}
+
+const opTimeout = 2 * time.Minute
 
 type Worker struct {
 	queue       queue.Queue
 	store       Store
+	judger      Judger
 	logger      *slog.Logger
 	concurrency int
-	fakeDelay   time.Duration
 	namePrefix  string
 
 	wg sync.WaitGroup
 }
 
-func New(q queue.Queue, store Store, logger *slog.Logger, concurrency int, fakeDelay time.Duration, namePrefix string) *Worker {
+func New(q queue.Queue, store Store, judger Judger, logger *slog.Logger, concurrency int, namePrefix string) *Worker {
 	if concurrency < 1 {
 		concurrency = 1
 	}
@@ -40,9 +51,9 @@ func New(q queue.Queue, store Store, logger *slog.Logger, concurrency int, fakeD
 	return &Worker{
 		queue:       q,
 		store:       store,
+		judger:      judger,
 		logger:      logger,
 		concurrency: concurrency,
-		fakeDelay:   fakeDelay,
 		namePrefix:  namePrefix,
 	}
 }
@@ -50,7 +61,7 @@ func New(q queue.Queue, store Store, logger *slog.Logger, concurrency int, fakeD
 // Run starts the consumer goroutines and blocks until ctx is cancelled and each
 // has finished its current job.
 func (w *Worker) Run(ctx context.Context) {
-	w.logger.Info("worker started", "concurrency", w.concurrency, "fake_delay", w.fakeDelay)
+	w.logger.Info("worker started", "concurrency", w.concurrency)
 
 	for i := 0; i < w.concurrency; i++ {
 		w.wg.Add(1)
@@ -87,50 +98,48 @@ func (w *Worker) runConsumer(ctx context.Context, name string) {
 			continue
 		}
 
-		w.process(ctx, name, msg)
+		w.process(name, msg)
 	}
 }
 
-// process drives one submission running -> done. Side effects use a detached
-// context so a shutdown mid-job still finishes cleanly.
-func (w *Worker) process(ctx context.Context, consumer string, msg queue.Message) {
+// process drives one submission running -> done. It uses a detached context so a
+// shutdown mid-job still finishes cleanly rather than leaving it stuck.
+func (w *Worker) process(consumer string, msg queue.Message) {
 	id := msg.Job.SubmissionID
 	log := w.logger.With("submission_id", id, "consumer", consumer)
 
-	opCtx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 	defer cancel()
 
-	claimed, err := w.store.MarkRunning(opCtx, id)
+	claimed, err := w.store.MarkRunning(ctx, id)
 	if err != nil {
 		log.Error("mark running failed", "error", err)
-		_ = w.queue.Nack(opCtx, msg)
+		_ = w.queue.Nack(ctx, msg)
 		return
 	}
 	if !claimed {
 		log.Info("submission not claimable (not queued), skipping")
-		_ = w.queue.Ack(opCtx, msg)
+		_ = w.queue.Ack(ctx, msg)
 		return
 	}
 
-	log.Info("judging (fake)")
-	start := time.Now()
-	select {
-	case <-ctx.Done():
-	case <-time.After(w.fakeDelay):
-	}
-	runtimeMS := int(time.Since(start).Milliseconds())
-
-	const verdict = "AC" // Phase 6 placeholder
-	done, err := w.store.MarkDone(opCtx, id, verdict, runtimeMS)
+	log.Info("judging")
+	rep, err := w.judger.Run(ctx, id)
 	if err != nil {
-		log.Error("mark done failed", "error", err)
-		_ = w.queue.Nack(opCtx, msg)
+		log.Error("judge failed", "error", err)
+		if _, ferr := w.store.MarkFailed(ctx, id); ferr != nil {
+			log.Error("mark failed failed", "error", ferr)
+		}
+		_ = w.queue.Ack(ctx, msg)
 		return
 	}
-	if !done {
-		log.Warn("submission was not in 'running' state at completion")
+
+	if _, err := w.store.MarkDone(ctx, id, rep.Verdict, rep.RuntimeMS, rep.MemoryKB); err != nil {
+		log.Error("mark done failed", "error", err)
+		_ = w.queue.Nack(ctx, msg)
+		return
 	}
 
-	_ = w.queue.Ack(opCtx, msg)
-	log.Info("submission judged", "verdict", verdict, "runtime_ms", runtimeMS)
+	_ = w.queue.Ack(ctx, msg)
+	log.Info("submission judged", "verdict", rep.Verdict, "runtime_ms", rep.RuntimeMS, "memory_kb", rep.MemoryKB)
 }
