@@ -107,11 +107,20 @@ func (r *Repository) SaveTestResult(ctx context.Context, tr TestResult) error {
 	return err
 }
 
+// SetCompileError stores (truncated) compiler output on a submission. Status is
+// left to the caller's MarkDone/MarkFailed.
+func (r *Repository) SetCompileError(ctx context.Context, id int64, msg string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE submissions SET compile_error = $2 WHERE id = $1
+	`, id, msg)
+	return err
+}
+
 func (r *Repository) FindByID(ctx context.Context, id int64) (Submission, error) {
 	var s Submission
 
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, user_id, problem_id, language, source, status, verdict, runtime_ms, memory_kb, created_at, updated_at
+		SELECT id, user_id, problem_id, language, source, status, verdict, runtime_ms, memory_kb, compile_error, created_at, updated_at
 		FROM submissions
 		WHERE id = $1
 	`, id).Scan(
@@ -124,6 +133,7 @@ func (r *Repository) FindByID(ctx context.Context, id int64) (Submission, error)
 		&s.Verdict,
 		&s.RuntimeMS,
 		&s.MemoryKB,
+		&s.CompileError,
 		&s.CreatedAt,
 		&s.UpdatedAt,
 	)

@@ -8,10 +8,11 @@ type Submission struct {
 	ProblemID int64
 	Language  string
 	Source    string
-	Status    string
-	Verdict   *string
-	RuntimeMS *int
-	MemoryKB  *int
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Status       string
+	Verdict      *string
+	RuntimeMS    *int
+	MemoryKB     *int
+	CompileError *string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }

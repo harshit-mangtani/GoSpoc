@@ -42,12 +42,13 @@ type submissionResponse struct {
 	ProblemID int64     `json:"problem_id"`
 	Language  string    `json:"language"`
 	Source    string    `json:"source"`
-	Status    string    `json:"status"`
-	Verdict   *string   `json:"verdict"`
-	RuntimeMS *int      `json:"runtime_ms"`
-	MemoryKB  *int      `json:"memory_kb"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Status       string    `json:"status"`
+	Verdict      *string   `json:"verdict"`
+	RuntimeMS    *int      `json:"runtime_ms"`
+	MemoryKB     *int      `json:"memory_kb"`
+	CompileError *string   `json:"compile_error"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type listResponse struct {
@@ -192,12 +193,13 @@ func toResponse(s Submission) submissionResponse {
 		ProblemID: s.ProblemID,
 		Language:  s.Language,
 		Source:    s.Source,
-		Status:    s.Status,
-		Verdict:   s.Verdict,
-		RuntimeMS: s.RuntimeMS,
-		MemoryKB:  s.MemoryKB,
-		CreatedAt: s.CreatedAt,
-		UpdatedAt: s.UpdatedAt,
+		Status:       s.Status,
+		Verdict:      s.Verdict,
+		RuntimeMS:    s.RuntimeMS,
+		MemoryKB:     s.MemoryKB,
+		CompileError: s.CompileError,
+		CreatedAt:    s.CreatedAt,
+		UpdatedAt:    s.UpdatedAt,
 	}
 }
 

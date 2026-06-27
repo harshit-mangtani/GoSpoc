@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/harshit-mangtani/GoSpoc/internal/problem"
@@ -17,12 +19,19 @@ const (
 	TLE = "TLE"
 	MLE = "MLE"
 	RE  = "RE"
+	CE  = "CE"
+
+	compileErrorMax = 4096
 )
 
-type Spec struct {
-	Language string
-	Source   string
+// ExecRequest runs one command inside a locked-down container with HostDir
+// mounted at /work and Input fed on stdin.
+type ExecRequest struct {
+	Image    string
+	HostDir  string
+	Cmd      []string
 	Input    string
+	Env      map[string]string
 	WallMS   int
 	MemKB    int
 	OutputKB int
@@ -40,7 +49,7 @@ type Output struct {
 }
 
 type Sandbox interface {
-	Run(ctx context.Context, spec Spec) (Output, error)
+	Exec(ctx context.Context, req ExecRequest) (Output, error)
 }
 
 type ProblemStore interface {
@@ -54,6 +63,24 @@ type TestCaseStore interface {
 type SubmissionStore interface {
 	FindByID(ctx context.Context, id int64) (submission.Submission, error)
 	SaveTestResult(ctx context.Context, tr submission.TestResult) error
+	SetCompileError(ctx context.Context, id int64, msg string) error
+}
+
+type Config struct {
+	PythonImage   string
+	GoImage       string
+	WorkDir       string
+	OutputKB      int
+	CompileWallMS int
+	CompileMemKB  int
+}
+
+type langConfig struct {
+	image      string
+	sourceFile string
+	compileCmd []string // nil for interpreted languages
+	compileEnv map[string]string
+	runCmd     []string
 }
 
 type Result struct {
@@ -68,12 +95,23 @@ type Judge struct {
 	submissions SubmissionStore
 	sandbox     Sandbox
 	logger      *slog.Logger
-	outputKB    int
+
+	languages     map[string]langConfig
+	workDir       string
+	outputKB      int
+	compileWallMS int
+	compileMemKB  int
 }
 
-func New(problems ProblemStore, testcases TestCaseStore, submissions SubmissionStore, sandbox Sandbox, logger *slog.Logger, outputKB int) *Judge {
-	if outputKB <= 0 {
-		outputKB = 1024
+func New(problems ProblemStore, testcases TestCaseStore, submissions SubmissionStore, sandbox Sandbox, logger *slog.Logger, cfg Config) *Judge {
+	if cfg.OutputKB <= 0 {
+		cfg.OutputKB = 1024
+	}
+	if cfg.CompileWallMS <= 0 {
+		cfg.CompileWallMS = 10000
+	}
+	if cfg.CompileMemKB <= 0 {
+		cfg.CompileMemKB = 512 * 1024
 	}
 	return &Judge{
 		problems:    problems,
@@ -81,16 +119,37 @@ func New(problems ProblemStore, testcases TestCaseStore, submissions SubmissionS
 		submissions: submissions,
 		sandbox:     sandbox,
 		logger:      logger,
-		outputKB:    outputKB,
+		languages: map[string]langConfig{
+			"python": {
+				image:      cfg.PythonImage,
+				sourceFile: "solution.py",
+				runCmd:     []string{"python3", "/work/solution.py"},
+			},
+			"go": {
+				image:      cfg.GoImage,
+				sourceFile: "solution.go",
+				compileCmd: []string{"sh", "-c", "cp -a /opt/gocache /tmp/gocache && go build -o /work/prog /work/solution.go"},
+				compileEnv: map[string]string{"GOCACHE": "/tmp/gocache", "HOME": "/tmp"},
+				runCmd:     []string{"/work/prog"},
+			},
+		},
+		workDir:       cfg.WorkDir,
+		outputKB:      cfg.OutputKB,
+		compileWallMS: cfg.CompileWallMS,
+		compileMemKB:  cfg.CompileMemKB,
 	}
 }
 
-// Run judges one submission against every test case, stopping at the first
-// non-AC. It records each executed test case's result and returns the aggregate.
+// Run judges one submission: compile (for compiled languages) then run every
+// test case, stopping at the first non-AC.
 func (j *Judge) Run(ctx context.Context, submissionID int64) (Result, error) {
 	sub, err := j.submissions.FindByID(ctx, submissionID)
 	if err != nil {
 		return Result{}, fmt.Errorf("load submission: %w", err)
+	}
+	lang, ok := j.languages[sub.Language]
+	if !ok {
+		return Result{}, fmt.Errorf("unsupported language: %q", sub.Language)
 	}
 	prob, err := j.problems.GetByID(ctx, sub.ProblemID)
 	if err != nil {
@@ -104,16 +163,42 @@ func (j *Judge) Run(ctx context.Context, submissionID int64) (Result, error) {
 		return Result{}, fmt.Errorf("problem %d has no test cases", sub.ProblemID)
 	}
 
+	dir, err := os.MkdirTemp(j.workDir, "gospoc-judge-")
+	if err != nil {
+		return Result{}, err
+	}
+	defer os.RemoveAll(dir)
+
+	if err := os.WriteFile(filepath.Join(dir, lang.sourceFile), []byte(sub.Source), 0o644); err != nil {
+		return Result{}, err
+	}
+
+	if lang.compileCmd != nil {
+		out, err := j.sandbox.Exec(ctx, ExecRequest{
+			Image: lang.image, HostDir: dir, Cmd: lang.compileCmd, Env: lang.compileEnv,
+			WallMS: j.compileWallMS, MemKB: j.compileMemKB, OutputKB: j.outputKB,
+		})
+		if err != nil {
+			return Result{}, fmt.Errorf("compile: %w", err)
+		}
+		if out.Verdict != "OK" {
+			msg := out.StderrExcerpt
+			if out.Verdict == TLE {
+				msg = "compilation timed out"
+			}
+			if err := j.submissions.SetCompileError(ctx, submissionID, truncate(msg, compileErrorMax)); err != nil {
+				j.logger.Error("store compile error failed", "submission_id", submissionID, "error", err)
+			}
+			return Result{Verdict: CE}, nil
+		}
+	}
+
 	final := AC
 	var maxRT, maxMem int
 	for _, tc := range cases {
-		out, err := j.sandbox.Run(ctx, Spec{
-			Language: sub.Language,
-			Source:   sub.Source,
-			Input:    tc.Input,
-			WallMS:   prob.TimeLimitMS,
-			MemKB:    prob.MemoryLimitKB,
-			OutputKB: j.outputKB,
+		out, err := j.sandbox.Exec(ctx, ExecRequest{
+			Image: lang.image, HostDir: dir, Cmd: lang.runCmd, Input: tc.Input,
+			WallMS: prob.TimeLimitMS, MemKB: prob.MemoryLimitKB, OutputKB: j.outputKB,
 		})
 		if err != nil {
 			return Result{}, fmt.Errorf("sandbox run (test %d): %w", tc.Idx, err)
@@ -179,4 +264,11 @@ func normalize(s string) string {
 		lines = lines[:len(lines)-1]
 	}
 	return strings.Join(lines, "\n")
+}
+
+func truncate(s string, max int) string {
+	if len(s) > max {
+		return s[:max]
+	}
+	return s
 }

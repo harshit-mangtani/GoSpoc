@@ -28,9 +28,12 @@ type Config struct {
 
 	WorkerConcurrency int // concurrent judge goroutines
 
-	SandboxImage    string // docker image used to judge python submissions
-	SandboxWorkDir  string // host dir for per-run mounts ("" = os.TempDir)
-	SandboxOutputKB int    // max captured stdout per run, in KB
+	SandboxImagePython string // docker image for judging python
+	SandboxImageGo     string // docker image for judging go
+	SandboxWorkDir     string // host dir for per-run mounts ("" = os.TempDir)
+	SandboxOutputKB    int    // max captured stdout per run, in KB
+	SandboxCompileWall int    // compile-step wall-clock limit, ms
+	SandboxCompileMem  int    // compile-step memory limit, KB
 }
 
 func Load() Config {
@@ -59,9 +62,12 @@ func Load() Config {
 
 		WorkerConcurrency: getInt("WORKER_CONCURRENCY", 4),
 
-		SandboxImage:    getStr("SANDBOX_IMAGE", "gospoc-sandbox-python"),
-		SandboxWorkDir:  getStr("SANDBOX_WORK_DIR", ""),
-		SandboxOutputKB: getInt("SANDBOX_OUTPUT_KB", 1024),
+		SandboxImagePython: getStr("SANDBOX_IMAGE_PYTHON", "gospoc-sandbox-python"),
+		SandboxImageGo:     getStr("SANDBOX_IMAGE_GO", "gospoc-sandbox-go"),
+		SandboxWorkDir:     getStr("SANDBOX_WORK_DIR", ""),
+		SandboxOutputKB:    getInt("SANDBOX_OUTPUT_KB", 1024),
+		SandboxCompileWall: getInt("SANDBOX_COMPILE_WALL_MS", 10000),
+		SandboxCompileMem:  getInt("SANDBOX_COMPILE_MEM_KB", 524288),
 	}
 }
 

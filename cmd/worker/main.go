@@ -63,8 +63,15 @@ func main() {
 	problemRepo := problem.NewRepository(pool)
 	testcaseRepo := testcase.NewRepository(pool)
 
-	sandbox := judge.NewDockerSandbox(cfg.SandboxImage, "docker", cfg.SandboxWorkDir)
-	theJudge := judge.New(problemRepo, testcaseRepo, submissionRepo, sandbox, logger, cfg.SandboxOutputKB)
+	sandbox := judge.NewDockerSandbox("docker")
+	theJudge := judge.New(problemRepo, testcaseRepo, submissionRepo, sandbox, logger, judge.Config{
+		PythonImage:   cfg.SandboxImagePython,
+		GoImage:       cfg.SandboxImageGo,
+		WorkDir:       cfg.SandboxWorkDir,
+		OutputKB:      cfg.SandboxOutputKB,
+		CompileWallMS: cfg.SandboxCompileWall,
+		CompileMemKB:  cfg.SandboxCompileMem,
+	})
 
 	host, _ := os.Hostname()
 	namePrefix := fmt.Sprintf("%s-%d", host, os.Getpid())

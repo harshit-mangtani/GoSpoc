@@ -1,0 +1,23 @@
+FROM golang:1.26 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/runner ./sandbox/runner
+
+FROM golang:1.26
+RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin sandbox
+COPY --from=build /out/runner /usr/local/bin/runner
+
+# Pre-warm a build cache so per-submission compiles are incremental, not cold
+# (Go compiles stdlib on demand; a cold cache costs ~25s).
+ENV GOCACHE=/opt/gocache
+RUN mkdir -p /opt/gocache \
+ && printf 'package main\nimport (_ "bufio";_ "bytes";_ "fmt";_ "io";_ "math";_ "os";_ "sort";_ "strconv";_ "strings")\nfunc main(){}\n' > /tmp/warm.go \
+ && go build -o /dev/null /tmp/warm.go \
+ && rm -f /tmp/warm.go \
+ && chmod -R a+rX /opt/gocache
+
+USER sandbox
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/runner"]

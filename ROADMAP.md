@@ -150,10 +150,10 @@ Goal: end-to-end. User submits Python → real verdict comes back.
 ### Phase 9 — Compiled languages (Go)
 Goal: support a language that needs a compile step.
 
-- [ ] `sandbox/Dockerfile.go`
-- [ ] Two-stage execution: compile (own time/mem limit) → run
-- [ ] Compile failure → `CE` verdict; compiler stderr stored (truncated)
-- [ ] Worker chooses language config based on `submission.language`
+- [x] `sandbox/Dockerfile.go` (named `Dockerfile.golang` — a `.go` file breaks `go build ./...`)
+- [x] Two-stage execution: compile (own time/mem limit) → run
+- [x] Compile failure → `CE` verdict; compiler stderr stored (truncated)
+- [x] Worker chooses language config based on `submission.language`
 
 ### Phase 10 — Live updates
 Goal: the client doesn't have to poll.
