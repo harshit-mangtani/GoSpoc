@@ -14,7 +14,7 @@ services:
     image: redis:8.8.0
     container_name: gospoc-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
 
 volumes:
   postgres_data:

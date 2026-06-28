@@ -18,17 +18,6 @@ import (
 	"github.com/harshit-mangtani/GoSpoc/internal/worker"
 )
 
-// judgeRunner adapts *judge.Judge to worker.Judger.
-type judgeRunner struct{ j *judge.Judge }
-
-func (r judgeRunner) Run(ctx context.Context, submissionID int64) (worker.Report, error) {
-	res, err := r.j.Run(ctx, submissionID)
-	if err != nil {
-		return worker.Report{}, err
-	}
-	return worker.Report{Verdict: res.Verdict, RuntimeMS: res.RuntimeMS, MemoryKB: res.MemoryKB}, nil
-}
-
 func main() {
 	cfg := config.Load()
 	logger := httpx.NewLogger(cfg.Env, cfg.LogLevel).With("service", "worker", "env", cfg.Env)
@@ -76,7 +65,7 @@ func main() {
 	host, _ := os.Hostname()
 	namePrefix := fmt.Sprintf("%s-%d", host, os.Getpid())
 
-	w := worker.New(jobQueue, submissionRepo, judgeRunner{theJudge}, logger, cfg.WorkerConcurrency, namePrefix)
+	w := worker.New(jobQueue, submissionRepo, theJudge, logger, cfg.WorkerConcurrency, namePrefix)
 
 	w.Run(ctx)
 	logger.Info("worker exited cleanly")

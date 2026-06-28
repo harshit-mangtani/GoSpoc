@@ -52,20 +52,6 @@ type Sandbox interface {
 	Exec(ctx context.Context, req ExecRequest) (Output, error)
 }
 
-type ProblemStore interface {
-	GetByID(ctx context.Context, id int64) (problem.Problem, error)
-}
-
-type TestCaseStore interface {
-	ListByProblem(ctx context.Context, problemID int64) ([]testcase.TestCase, error)
-}
-
-type SubmissionStore interface {
-	FindByID(ctx context.Context, id int64) (submission.Submission, error)
-	SaveTestResult(ctx context.Context, tr submission.TestResult) error
-	SetCompileError(ctx context.Context, id int64, msg string) error
-}
-
 type Config struct {
 	PythonImage   string
 	GoImage       string
@@ -90,9 +76,9 @@ type Result struct {
 }
 
 type Judge struct {
-	problems    ProblemStore
-	testcases   TestCaseStore
-	submissions SubmissionStore
+	problems    *problem.Repository
+	testcases   *testcase.Repository
+	submissions *submission.Repository
 	sandbox     Sandbox
 	logger      *slog.Logger
 
@@ -103,7 +89,7 @@ type Judge struct {
 	compileMemKB  int
 }
 
-func New(problems ProblemStore, testcases TestCaseStore, submissions SubmissionStore, sandbox Sandbox, logger *slog.Logger, cfg Config) *Judge {
+func New(problems *problem.Repository, testcases *testcase.Repository, submissions *submission.Repository, sandbox Sandbox, logger *slog.Logger, cfg Config) *Judge {
 	if cfg.OutputKB <= 0 {
 		cfg.OutputKB = 1024
 	}
