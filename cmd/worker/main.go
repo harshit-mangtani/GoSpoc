@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/harshit-mangtani/GoSpoc/internal/config"
+	"github.com/harshit-mangtani/GoSpoc/internal/events"
 	"github.com/harshit-mangtani/GoSpoc/internal/httpx"
 	"github.com/harshit-mangtani/GoSpoc/internal/judge"
 	"github.com/harshit-mangtani/GoSpoc/internal/problem"
@@ -65,7 +66,8 @@ func main() {
 	host, _ := os.Hostname()
 	namePrefix := fmt.Sprintf("%s-%d", host, os.Getpid())
 
-	w := worker.New(jobQueue, submissionRepo, theJudge, logger, cfg.WorkerConcurrency, namePrefix)
+	publisher := events.NewPublisher(redisClient)
+	w := worker.New(jobQueue, submissionRepo, theJudge, publisher, logger, cfg.WorkerConcurrency, namePrefix)
 
 	w.Run(ctx)
 	logger.Info("worker exited cleanly")

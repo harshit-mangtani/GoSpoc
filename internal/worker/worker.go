@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/harshit-mangtani/GoSpoc/internal/events"
 	"github.com/harshit-mangtani/GoSpoc/internal/judge"
 	"github.com/harshit-mangtani/GoSpoc/internal/queue"
 	"github.com/harshit-mangtani/GoSpoc/internal/submission"
@@ -19,6 +20,7 @@ type Worker struct {
 	queue       queue.Queue
 	store       *submission.Repository
 	judger      *judge.Judge
+	publisher   *events.Publisher
 	logger      *slog.Logger
 	concurrency int
 	namePrefix  string
@@ -26,7 +28,7 @@ type Worker struct {
 	wg sync.WaitGroup
 }
 
-func New(q queue.Queue, store *submission.Repository, judger *judge.Judge, logger *slog.Logger, concurrency int, namePrefix string) *Worker {
+func New(q queue.Queue, store *submission.Repository, judger *judge.Judge, publisher *events.Publisher, logger *slog.Logger, concurrency int, namePrefix string) *Worker {
 	if concurrency < 1 {
 		concurrency = 1
 	}
@@ -37,9 +39,19 @@ func New(q queue.Queue, store *submission.Repository, judger *judge.Judge, logge
 		queue:       q,
 		store:       store,
 		judger:      judger,
+		publisher:   publisher,
 		logger:      logger,
 		concurrency: concurrency,
 		namePrefix:  namePrefix,
+	}
+}
+
+func (w *Worker) publish(ctx context.Context, e events.Event) {
+	if w.publisher == nil {
+		return
+	}
+	if err := w.publisher.Publish(ctx, e); err != nil {
+		w.logger.Error("publish event failed", "submission_id", e.SubmissionID, "error", err)
 	}
 }
 
@@ -107,6 +119,7 @@ func (w *Worker) process(consumer string, msg queue.Message) {
 		_ = w.queue.Ack(ctx, msg)
 		return
 	}
+	w.publish(ctx, events.Event{SubmissionID: id, Status: "running"})
 
 	log.Info("judging")
 	rep, err := w.judger.Run(ctx, id)
@@ -115,6 +128,7 @@ func (w *Worker) process(consumer string, msg queue.Message) {
 		if _, ferr := w.store.MarkFailed(ctx, id); ferr != nil {
 			log.Error("mark failed failed", "error", ferr)
 		}
+		w.publish(ctx, events.Event{SubmissionID: id, Status: "failed"})
 		_ = w.queue.Ack(ctx, msg)
 		return
 	}
@@ -125,6 +139,8 @@ func (w *Worker) process(consumer string, msg queue.Message) {
 		return
 	}
 
+	verdict, rt, mem := rep.Verdict, rep.RuntimeMS, rep.MemoryKB
+	w.publish(ctx, events.Event{SubmissionID: id, Status: "done", Verdict: &verdict, RuntimeMS: &rt, MemoryKB: &mem})
 	_ = w.queue.Ack(ctx, msg)
 	log.Info("submission judged", "verdict", rep.Verdict, "runtime_ms", rep.RuntimeMS, "memory_kb", rep.MemoryKB)
 }

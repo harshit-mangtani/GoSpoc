@@ -3,6 +3,7 @@ package submission
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/harshit-mangtani/GoSpoc/internal/auth"
+	"github.com/harshit-mangtani/GoSpoc/internal/events"
 	"github.com/harshit-mangtani/GoSpoc/internal/queue"
 	"github.com/jackc/pgx/v5"
 )
@@ -19,13 +21,15 @@ const maxSourceBytes = 64 * 1024
 type Handler struct {
 	submissions *Repository
 	queue       queue.Queue
+	subscriber  *events.Subscriber
 	logger      *slog.Logger
 }
 
-func NewHandler(submissions *Repository, q queue.Queue, logger *slog.Logger) *Handler {
+func NewHandler(submissions *Repository, q queue.Queue, subscriber *events.Subscriber, logger *slog.Logger) *Handler {
 	return &Handler{
 		submissions: submissions,
 		queue:       q,
+		subscriber:  subscriber,
 		logger:      logger,
 	}
 }
@@ -134,6 +138,86 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, toResponse(s))
+}
+
+// Events streams a submission's status changes as Server-Sent Events. It sends
+// the current state immediately, then live updates until the submission reaches
+// a terminal state (done/failed) or the client disconnects.
+func (h *Handler) Events(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid submission id", http.StatusBadRequest)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	ctx := r.Context()
+	// Subscribe before reading the snapshot so we can't miss a change that
+	// lands between the two.
+	updates, cancel := h.subscriber.Subscribe(ctx, id)
+	defer cancel()
+
+	s, err := h.submissions.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, "submission not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get submission", http.StatusInternalServerError)
+		return
+	}
+	if s.UserID != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	writeSSE(w, flusher, events.Event{
+		SubmissionID: s.ID, Status: s.Status, Verdict: s.Verdict, RuntimeMS: s.RuntimeMS, MemoryKB: s.MemoryKB,
+	})
+	if isTerminal(s.Status) {
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case e, ok := <-updates:
+			if !ok {
+				return
+			}
+			writeSSE(w, flusher, e)
+			if isTerminal(e.Status) {
+				return
+			}
+		}
+	}
+}
+
+func writeSSE(w http.ResponseWriter, f http.Flusher, e events.Event) {
+	data, _ := json.Marshal(e)
+	fmt.Fprintf(w, "data: %s\n\n", data)
+	f.Flush()
+}
+
+func isTerminal(status string) bool {
+	return status == "done" || status == "failed"
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {

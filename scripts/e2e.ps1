@@ -135,6 +135,8 @@ try {
     Check "login admin -> 200 + token" ($adminLogin.Status -eq 200 -and $adminTok)
     $userTok = (Api POST "/auth/login" (@{email=$user;password=$pw} | ConvertTo-Json) $null).Body | ConvertFrom-Json | Select-Object -Expand token
     Check "login wrong password -> 401" ((Api POST "/auth/login" (@{email=$admin;password="wrongpass1"} | ConvertTo-Json) $null).Status -eq 401)
+    Check "duplicate email signup -> 409" ((Api POST "/auth/signup" (@{email=$admin;password=$pw;role="admin"} | ConvertTo-Json) $null).Status -eq 409)
+    Check "invalid token -> 401" ((Api GET "/me" $null "garbage.jwt.token").Status -eq 401)
     Check "GET /me (auth) -> 200" ((Api GET "/me" $null $adminTok).Status -eq 200)
     Check "GET /me (no token) -> 401" ((Api GET "/me").Status -eq 401)
 
@@ -162,6 +164,9 @@ try {
     Check "GET /submissions/{id} -> status queued" (((Api GET "/submissions/$firstId" $null $adminTok).Body | ConvertFrom-Json).status -eq "queued")
     Check "unsupported language -> 400" ((Api POST "/submissions" (@{problem_id=$probId;language="cobol";source="x"} | ConvertTo-Json) $adminTok).Status -eq 400)
     Check "missing problem_id -> 400" ((Api POST "/submissions" (@{language="python";source="x"} | ConvertTo-Json) $adminTok).Status -eq 400)
+    Check "empty source -> 400" ((Api POST "/submissions" (@{problem_id=$probId;language="python";source=""} | ConvertTo-Json) $adminTok).Status -eq 400)
+    $bigSrc = "a" * (65 * 1024)
+    Check "oversized source (>64KB) -> 400" ((Api POST "/submissions" (@{problem_id=$probId;language="python";source=$bigSrc} | ConvertTo-Json) $adminTok).Status -eq 400)
     Check "other user GET submission -> 403" ((Api GET "/submissions/$firstId" $null $userTok).Status -eq 403)
     Check "GET /submissions?problem_id -> 200" ((Api GET "/submissions?problem_id=$probId" $null $adminTok).Status -eq 200)
 
@@ -208,6 +213,16 @@ try {
     Check "AC submission wrote per-test rows" ($acRows -ge 2) "AC rows=$acRows"
     $ceErr = (Api GET "/submissions/$($jobs[6].id)" $null $adminTok).Body | ConvertFrom-Json
     Check "CE submission stored compiler output" ([bool]$ceErr.compile_error) "compile_error=$($ceErr.compile_error)"
+
+    # --- Phase 10: live updates (SSE) --------------------------------------
+    Section "Phase 10 - Live updates (SSE)"
+    $sseId = Sub $probId "python" $pyAC
+    # Stream stays open until the submission is terminal, then the server closes it.
+    $sse = (& curl.exe -sN --max-time 40 -H "Authorization: Bearer $adminTok" "$BaseUrl/submissions/$sseId/events") -join "`n"
+    Check "SSE stream reaches terminal 'done'" ($sse -match '"status"\s*:\s*"done"') "stream=$sse"
+    Check "SSE event carries the verdict" ($sse -match '"verdict"\s*:\s*"AC"')
+    Check "SSE non-owner -> 403" ((Api GET "/submissions/$firstId/events" $null $userTok).Status -eq 403)
+    Check "SSE invalid id -> 400" ((Api GET "/submissions/abc/events" $null $adminTok).Status -eq 400)
 }
 finally {
     Section "Teardown"

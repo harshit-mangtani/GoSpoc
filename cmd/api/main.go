@@ -12,6 +12,7 @@ import (
 
 	"github.com/harshit-mangtani/GoSpoc/internal/auth"
 	"github.com/harshit-mangtani/GoSpoc/internal/config"
+	"github.com/harshit-mangtani/GoSpoc/internal/events"
 	"github.com/harshit-mangtani/GoSpoc/internal/httpx"
 	"github.com/harshit-mangtani/GoSpoc/internal/problem"
 	"github.com/harshit-mangtani/GoSpoc/internal/queue/redisstream"
@@ -66,7 +67,8 @@ func main() {
 	problemRepo := problem.NewRepository(pool)
 	problemHandler := problem.NewHandler(problemRepo)
 	submissionRepo := submission.NewRepository(pool)
-	submissionHandler := submission.NewHandler(submissionRepo, jobQueue, logger)
+	eventsSub := events.NewSubscriber(redisPool)
+	submissionHandler := submission.NewHandler(submissionRepo, jobQueue, eventsSub, logger)
 
 	sweeper := submission.NewSweeper(
 		submissionRepo,
@@ -82,6 +84,7 @@ func main() {
 	mux.Handle("POST /submissions", requireAuth(http.HandlerFunc(submissionHandler.Create)))
 	mux.Handle("GET /submissions", requireAuth(http.HandlerFunc(submissionHandler.List)))
 	mux.Handle("GET /submissions/{id}", requireAuth(http.HandlerFunc(submissionHandler.GetByID)))
+	mux.Handle("GET /submissions/{id}/events", requireAuth(http.HandlerFunc(submissionHandler.Events)))
 
 	mux.HandleFunc("POST /auth/signup", authHandler.Signup)
 	mux.HandleFunc("POST /auth/login", authHandler.Login)

@@ -158,10 +158,10 @@ Goal: support a language that needs a compile step.
 ### Phase 10 — Live updates
 Goal: the client doesn't have to poll.
 
-- [ ] `GET /submissions/{id}/events` — Server-Sent Events stream
-- [ ] Worker publishes status changes to a Redis pub/sub channel
-- [ ] API subscribes, fans out to connected SSE clients
-- [ ] Decision later: SSE vs WebSocket — SSE is simpler, do it first
+- [x] `GET /submissions/{id}/events` — Server-Sent Events stream
+- [x] Worker publishes status changes to a Redis pub/sub channel
+- [x] API subscribes, fans out to connected SSE clients
+- [x] Decision later: SSE vs WebSocket — SSE is simpler, do it first (chose SSE)
 
 ### Phase 11 — Hardening
 Goal: things you'd be embarrassed to ship without.
